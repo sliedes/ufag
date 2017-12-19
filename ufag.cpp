@@ -16,7 +16,6 @@
 #include <utility>
 #include <vector>
 
-#include <boost/container/static_vector.hpp>
 #include <boost/functional/hash.hpp>
 #include <boost/program_options.hpp>
 
@@ -43,7 +42,6 @@ using std::tie;
 using std::unordered_map;
 using std::vector;
 
-using boost::container::static_vector;
 using boost::hash_range;
 
 namespace po = boost::program_options;
@@ -74,7 +72,7 @@ typedef unordered_map<UChar, int> CharMap;
 // A multiset of characters.
 class CharBag {
 public:
-    typedef static_vector<CharIdx, MAX_LETTERS> Vec;
+    typedef vector<CharIdx> Vec;
     typedef bitset<MAX_CHARIDX+1> Bits;
 
     static optional<CharBag> fromUString(const UnicodeString &str, const CharMap &charmap);
