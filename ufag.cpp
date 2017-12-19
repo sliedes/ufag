@@ -194,8 +194,8 @@ static pair<vector<vector<string>>, vector<CharBag>> loadDictionary(
     ifstream f(fname);
 
     vector<vector<string>> words;
-    vector<CharBag> charsets;
-    unordered_map<CharBag, size_t> charset_map;
+    vector<CharBag> charbags;
+    unordered_map<CharBag, size_t> charbag_map;
     size_t count = 0;
     for (string line; std::getline(f, line);) {
 	if (line.length() == 0)
@@ -205,25 +205,25 @@ static pair<vector<vector<string>>, vector<CharBag>> loadDictionary(
 	    if (cs->empty())
 		continue;
 	    ++count;
-	    auto it = charset_map.find(*cs);
-	    if (it == charset_map.end()) {
+	    auto it = charbag_map.find(*cs);
+	    if (it == charbag_map.end()) {
 		words.emplace_back(vector<string>{{line}});
-		charsets.emplace_back(*cs);
-		charset_map[*cs] = words.size()-1;
+		charbags.emplace_back(*cs);
+		charbag_map[*cs] = words.size()-1;
 	    } else
 		words[it->second].emplace_back(line);
 	}
     }
 
     //cerr << "Loaded " << count << " dictionary words, " << words.size() << " distinct." << endl;
-    return make_pair(words, charsets);
+    return make_pair(words, charbags);
 }
 
 template <typename Fn>
-void forAllAnagrams_iter_last(const vector<CharBag> &dict_charsets, const CharBag &charset, Fn &&f,
+void forAllAnagrams_iter_last(const vector<CharBag> &dict_charbags, const CharBag &charbag, Fn &&f,
 			      vector<size_t> &words, size_t start_idx) {
-    for (int i=start_idx, ie = dict_charsets.size(); i<ie; i++) {
-	if (charset == dict_charsets[i]) {
+    for (int i=start_idx, ie = dict_charbags.size(); i<ie; i++) {
+	if (charbag == dict_charbags[i]) {
 	    words.emplace_back(i);
 	    f(words);
 	    words.pop_back();
@@ -232,30 +232,30 @@ void forAllAnagrams_iter_last(const vector<CharBag> &dict_charsets, const CharBa
 }
 
 template <typename Fn>
-void forAllAnagrams_iter(const vector<CharBag> &dict_charsets, const CharBag &charset, Fn &&f, vector<size_t> &words,
+void forAllAnagrams_iter(const vector<CharBag> &dict_charbags, const CharBag &charbag, Fn &&f, vector<size_t> &words,
 			 size_t start_idx, int curr_len, int max_len) {
     if (curr_len+1 >= max_len) {
-	forAllAnagrams_iter_last(dict_charsets, charset, f, words, start_idx);
+	forAllAnagrams_iter_last(dict_charbags, charbag, f, words, start_idx);
 	return;
     }
-    for (int i=start_idx, ie = dict_charsets.size(); i<ie; i++) {
-	auto cs_opt = charset - dict_charsets[i];
+    for (int i=start_idx, ie = dict_charbags.size(); i<ie; i++) {
+	auto cs_opt = charbag - dict_charbags[i];
 	if (cs_opt) {
 	    auto cs = *cs_opt;
 	    words.emplace_back(i);
 	    if (cs.empty())
 		f(words);
 	    else
-		forAllAnagrams_iter(dict_charsets, cs, forward<Fn>(f), words, i, curr_len+1, max_len);
+		forAllAnagrams_iter(dict_charbags, cs, forward<Fn>(f), words, i, curr_len+1, max_len);
 	    words.pop_back();
 	}
     }
 }
 
 template <typename Fn>
-void forAllAnagrams(const vector<CharBag> &dict_charsets, const CharBag &charset, int max_len, Fn &&f) {
+void forAllAnagrams(const vector<CharBag> &dict_charbags, const CharBag &charbag, int max_len, Fn &&f) {
     vector<size_t> words;
-    forAllAnagrams_iter(dict_charsets, charset, forward<Fn>(f), words, 0, 0, max_len);
+    forAllAnagrams_iter(dict_charbags, charbag, forward<Fn>(f), words, 0, 0, max_len);
 }
 
 // The words vector contains vectors of anagram-equivalent words.
@@ -351,13 +351,13 @@ int main(int argc, char **argv) {
 
     tie(charmap, reverse_charmap) = generateCharMap(input);
 
-    auto input_charset = CharBag::fromUString(input, charmap).value();
+    auto input_charbag = CharBag::fromUString(input, charmap).value();
 
     vector<vector<string>> dict_words;
-    vector<CharBag> dict_charsets;
-    tie(dict_words, dict_charsets) = loadDictionary(vm["dict"].as<string>(), input_charset, charmap);
+    vector<CharBag> dict_charbags;
+    tie(dict_words, dict_charbags) = loadDictionary(vm["dict"].as<string>(), input_charbag, charmap);
 
-    forAllAnagrams(dict_charsets, input_charset, vm["len"].as<int>(), [&dict_words](const vector<size_t> &word_idxs) {
+    forAllAnagrams(dict_charbags, input_charbag, vm["len"].as<int>(), [&dict_words](const vector<size_t> &word_idxs) {
 	    assert(!word_idxs.empty());
 	    outputWords(cout, word_idxs, dict_words);
 	});
