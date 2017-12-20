@@ -55,7 +55,7 @@ constexpr int MAX_CHARIDX = std::numeric_limits<CharIdx>::max();
 // If the given function returns false, terminate.
 template <typename Fn>
 bool forAllAlpha(const UnicodeString &s, Fn &&f) {
-    for (int j=0, je=s.length(); j<je; j++) {
+    for (int j = 0, je = s.length(); j<je; j++) {
 	UChar c = s[j];
 	if (u_isUAlphabetic(c)) {
 	    if (!f(c))
@@ -82,6 +82,11 @@ public:
     const Vec &vec() const { return m_vec; }
 
     bool empty() const { return m_vec.empty(); }
+
+    bool isSubsetOf(const CharBag &other) const {
+	auto cs_opt = other-*this;
+	return (bool)cs_opt;
+    }
 
     optional<CharBag> operator-(const CharBag &rhs) const;
     bool operator==(const CharBag &rhs) const;
@@ -218,11 +223,13 @@ static pair<vector<vector<string>>, vector<CharBag>> loadDictionary(
 }
 
 template <typename Fn>
-void forAllAnagrams_iter_last(const vector<CharBag> &dict_charbags, const CharBag &charbag, Fn &&f,
+void forAllAnagrams_iter_last(const vector<CharBag> &dict_charbags,
+			      const vector<int> &possible_charbags,
+			      const CharBag &charbag, Fn &&f,
 			      vector<size_t> &words, size_t start_idx) {
-    for (int i=start_idx, ie = dict_charbags.size(); i<ie; i++) {
-	if (charbag == dict_charbags[i]) {
-	    words.emplace_back(i);
+    for (int i = start_idx, ie = possible_charbags.size(); i<ie; i++) {
+	if (charbag == dict_charbags[possible_charbags[i]]) {
+	    words.emplace_back(possible_charbags[i]);
 	    f(words);
 	    words.pop_back();
 	}
@@ -230,41 +237,54 @@ void forAllAnagrams_iter_last(const vector<CharBag> &dict_charbags, const CharBa
 }
 
 template <typename Fn>
-void forAllAnagrams_iter(const vector<CharBag> &dict_charbags, const CharBag &charbag, Fn &&f, vector<size_t> &words,
-			 size_t start_idx, int curr_len, int max_len) {
+void forAllAnagrams_iter(const vector<CharBag> &dict_charbags,
+			 const vector<int> &old_possible_charbags,
+			 const CharBag &charbag, Fn &&f,
+			 vector<size_t> &words, size_t start_idx, int curr_len, int max_len) {
     if (curr_len+1 >= max_len) {
-	forAllAnagrams_iter_last(dict_charbags, charbag, f, words, start_idx);
+	forAllAnagrams_iter_last(dict_charbags, old_possible_charbags, charbag, f,
+				 words, start_idx);
 	return;
     }
-    for (int i=start_idx, ie = dict_charbags.size(); i<ie; i++) {
-	auto cs_opt = charbag - dict_charbags[i];
-	if (cs_opt) {
-	    auto cs = *cs_opt;
-	    words.emplace_back(i);
-	    if (cs.empty())
-		f(words);
-	    else
-		forAllAnagrams_iter(dict_charbags, cs, forward<Fn>(f), words, i, curr_len+1, max_len);
-	    words.pop_back();
-	}
+    vector<int> possible_charbags;
+    for (int i = start_idx, ie = old_possible_charbags.size(); i<ie; i++) {
+	if (dict_charbags[old_possible_charbags[i]].isSubsetOf(charbag))
+	    possible_charbags.emplace_back(i);
+    }
+
+    for (int i = 0, ie = possible_charbags.size(); i<ie; i++) {
+	auto cs = (charbag - dict_charbags[possible_charbags[i]]).value();
+	words.emplace_back(possible_charbags[i]);
+	if (cs.empty())
+	    f(words);
+	else
+	    forAllAnagrams_iter(dict_charbags, possible_charbags,
+				cs, forward<Fn>(f), words, i, curr_len+1, max_len);
+	words.pop_back();
     }
 }
 
 template <typename Fn>
-void forAllAnagrams(const vector<CharBag> &dict_charbags, const CharBag &charbag, int max_len, Fn &&f) {
+void forAllAnagrams(const vector<CharBag> &dict_charbags, const CharBag &charbag,
+		    int max_len, Fn &&f) {
     vector<size_t> words;
-    forAllAnagrams_iter(dict_charbags, charbag, forward<Fn>(f), words, 0, 0, max_len);
+    vector<int> possible_charbags(dict_charbags.size());
+    for (int i = 0, ie = dict_charbags.size(); i<ie; i++)
+	possible_charbags[i] = i;
+    forAllAnagrams_iter(dict_charbags, possible_charbags,
+			charbag, forward<Fn>(f), words, 0, 0, max_len);
 }
 
 // The words vector contains vectors of anagram-equivalent words.
 // Output all possible combinations of them.
-static void outputWords(ostream &stream, const vector<size_t> &word_idxs, const vector<vector<string>> words) {
+static void outputWords(ostream &stream, const vector<size_t> &word_idxs,
+			const vector<vector<string>> words) {
     int size = word_idxs.size();
     vector<size_t> idxs(size);
 
     while (true) {
 	stream << words[word_idxs[0]][idxs[0]];
-	for (int i=1; i<size; i++)
+	for (int i = 1; i<size; i++)
 	    stream << " " << words[word_idxs[i]][idxs[i]];
 	stream << endl;
 
@@ -291,7 +311,8 @@ static po::variables_map parse_args(int argc, char * const *argv) {
     po::options_description visible("Allowed options"), cmdline_opt;
     visible.add_options()
 	("help,h", po::bool_switch(&help)->default_value(false), "show this help")
-	("dict,d", po::value<string>()->default_value("words.txt"), "dictionary (word list) to use")
+	("dict,d", po::value<string>()->default_value("words.txt"),
+	 "dictionary (word list) to use")
 	("len,l", po::value<int>()->default_value(3), "maximum anagram length in words");
 
     po::options_description hidden;
@@ -325,7 +346,8 @@ static pair<CharMap, vector<UChar>> generateCharMap(const UnicodeString &input) 
     forAllAlpha(input, [&charmap, &reverse_charmap, &i](UChar c) {
 	    if (charmap.find(c) == charmap.end()) {
 		if (i == MAX_CHARIDX) {
-		    cerr << "Error: More than " << MAX_CHARIDX+1 << " different characters in input." << endl;
+		    cerr << "Error: More than " << MAX_CHARIDX+1
+			 << " different characters in input." << endl;
 		    exit(1);
 		}
 		charmap[c] = i++;
@@ -355,7 +377,8 @@ int main(int argc, char **argv) {
     vector<CharBag> dict_charbags;
     tie(dict_words, dict_charbags) = loadDictionary(vm["dict"].as<string>(), input_charbag, charmap);
 
-    forAllAnagrams(dict_charbags, input_charbag, vm["len"].as<int>(), [&dict_words](const vector<size_t> &word_idxs) {
+    forAllAnagrams(dict_charbags, input_charbag, vm["len"].as<int>(),
+		   [&dict_words](const vector<size_t> &word_idxs) {
 	    assert(!word_idxs.empty());
 	    outputWords(cout, word_idxs, dict_words);
 	});
