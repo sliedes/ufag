@@ -16,6 +16,8 @@
 #include <utility>
 #include <vector>
 
+#include <gmpxx.h>
+
 #include <boost/functional/hash.hpp>
 #include <boost/program_options.hpp>
 
@@ -52,6 +54,21 @@ constexpr int MAX_LETTERS = 128;
 typedef uint8_t CharIdx;
 constexpr int MAX_CHARIDX = std::numeric_limits<CharIdx>::max();
 
+// first 168 primes
+constexpr int PRIMES[] = {
+    2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71,
+    73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151,
+    157, 163, 167, 173, 179, 181, 191, 193, 197, 199, 211, 223, 227, 229, 233,
+    239, 241, 251, 257, 263, 269, 271, 277, 281, 283, 293, 307, 311, 313, 317,
+    331, 337, 347, 349, 353, 359, 367, 373, 379, 383, 389, 397, 401, 409, 419,
+    421, 431, 433, 439, 443, 449, 457, 461, 463, 467, 479, 487, 491, 499, 503,
+    509, 521, 523, 541, 547, 557, 563, 569, 571, 577, 587, 593, 599, 601, 607,
+    613, 617, 619, 631, 641, 643, 647, 653, 659, 661, 673, 677, 683, 691, 701,
+    709, 719, 727, 733, 739, 743, 751, 757, 761, 769, 773, 787, 797, 809, 811,
+    821, 823, 827, 829, 839, 853, 857, 859, 863, 877, 881, 883, 887, 907, 911,
+    919, 929, 937, 941, 947, 953, 967, 971, 977, 983, 991, 997
+};
+
 // If the given function returns false, terminate.
 template <typename Fn>
 bool forAllAlpha(const UnicodeString &s, Fn &&f) {
@@ -70,18 +87,34 @@ bool forAllAlpha(const UnicodeString &s, Fn &&f) {
 typedef unordered_map<UChar, int> CharMap;
 
 // A multiset of characters.
+//
+// The allowable characters are passed in the CharMap, which maps
+// unicode characters to integers starting from 0.
+//
+// To facilitate the required multiset operations, namely subtraction
+// and subset testing, we map a multiset to an integer (which may not
+// fit in a fixed size integer type)
+//
+//    product(nth_prime(i)**char_count(i)).
+//
+// Now,
+//
+// * x is a subset of y iff x.num % y.num == 0
+// * x-y maps to integer division.
+//
+// The order of characters is chosen such that the most common
+// characters in the input map to smallest primes, which results in
+// smallest numbers.
 class CharBag {
 public:
-    typedef vector<CharIdx> Vec;
-    typedef bitset<MAX_CHARIDX+1> Bits;
-
     static optional<CharBag> fromUString(const UnicodeString &str, const CharMap &charmap);
     static optional<CharBag> fromNativeString(const string &str, const CharMap &charmap) {
 	return fromUString(UnicodeString(str.c_str()), charmap);
     }
-    const Vec &vec() const { return m_vec; }
+    const mpz_class &num() const { return m_num; }
+    const int size() const { return m_size; }
 
-    bool empty() const { return m_vec.empty(); }
+    bool empty() const { return m_size == 0; }
 
     bool isSubsetOf(const CharBag &other) const {
 	auto cs_opt = other-*this;
@@ -91,96 +124,66 @@ public:
     optional<CharBag> operator-(const CharBag &rhs) const;
     bool operator==(const CharBag &rhs) const;
 private:
-    CharBag(const Vec &vec) : m_vec(vec) {
-	for (const auto &c : m_vec)
-	    m_bits.set(c);
-    }
+    CharBag(mpz_class num, int size) : m_num(num), m_size(size) {}
 
-    Vec m_vec;
-
-    // A bitset of characters present in m_vec. Purely an optimization.
-    Bits m_bits;
+    mpz_class m_num;
+    int m_size;
 };
 
 namespace std {
   template <> struct hash<CharBag> {
     size_t operator()(const CharBag &cs) const {
-	return hash_range(cs.vec().begin(), cs.vec().end());
+	return mpz_class(cs.num() % 4294967291ul).get_ui();
     }
   };
 }
 
 bool CharBag::operator==(const CharBag &rhs) const {
-    return m_bits == rhs.m_bits && m_vec == rhs.m_vec;
+    return m_size == rhs.m_size && m_num == rhs.m_num;
 }
 
 optional<CharBag> CharBag::operator-(const CharBag &rhs) const {
-    if ((rhs.m_bits & ~m_bits).any())
-	return nullopt;
-    if (rhs.m_vec.size() > m_vec.size())
-	return nullopt;
-    if (rhs.m_vec.size() == m_vec.size()) {
-	if (rhs.m_vec == m_vec)
-	    return CharBag(Vec());
-	else
-	    return nullopt;
-    }
-
-    Vec new_vec;
-    auto lhs_it = m_vec.begin(), lhs_ie = m_vec.end();
-    auto rhs_it = rhs.m_vec.begin(), rhs_ie = rhs.m_vec.end();
-    while (lhs_it != lhs_ie && rhs_it != rhs_ie) {
-	auto l = *lhs_it, r = *rhs_it;
-	if (l < r) {
-	    new_vec.emplace_back(l);
-	    ++lhs_it;
-	} else if (l == r) {
-	    ++lhs_it;
-	    ++rhs_it;
-	} else
-	    return nullopt;
-    }
-
-    if (lhs_it == lhs_ie && rhs_it != rhs_ie)
+    if (rhs.m_size > m_size || rhs.m_num > m_num)
 	return nullopt;
 
-    while (lhs_it != lhs_ie)
-	new_vec.emplace_back(*(lhs_it++));
+    if (m_size == rhs.m_size && m_num == rhs.m_num)
+	return CharBag{mpz_class(1), 0};
 
-    assert(lhs_it == lhs_ie && rhs_it == rhs_ie);
-    assert(new_vec.size() == m_vec.size() - rhs.m_vec.size());
-    return CharBag(new_vec);
+    if (!mpz_divisible_p(m_num.get_mpz_t(), rhs.m_num.get_mpz_t()))
+	return nullopt;
+
+    mpz_class q;
+    mpz_divexact(q.get_mpz_t(), m_num.get_mpz_t(), rhs.m_num.get_mpz_t());
+    return CharBag{q, m_size-rhs.m_size};
 }
 
 optional<CharBag> CharBag::fromUString(const UnicodeString &str_, const CharMap &charmap) {
     UnicodeString str(str_);
     str.toLower();
-    CharBag::Vec vec;
-    if (forAllAlpha(str, [&vec, &charmap](UChar c) {
+
+    mpz_class n(1);
+    int size = 0;
+
+    static_assert(sizeof(PRIMES)/sizeof(PRIMES[0]) >= MAX_LETTERS);
+
+    if (forAllAlpha(str, [&n, &size, &charmap](UChar c) {
 	    auto it = charmap.find(c);
 	    if (it == charmap.end())
 		return false;
-	    vec.emplace_back(it->second);
+	    int idx = it->second;
+	    assert(idx < MAX_LETTERS);
+	    n *= PRIMES[idx];
+	    ++size;
 	    return true;
 	    })) {
-	std::sort(vec.begin(), vec.end());
-	return CharBag(vec);
+	return CharBag(n, size);
     } else
 	return nullopt;
 }
 
 [[maybe_unused]]
 static ostream &operator<<(ostream &os, const CharBag &cs) {
-    const auto &vec = cs.vec();
-    os << "CharBag{";
-    bool first = true;
-    for (auto c : vec) {
-	if (!first)
-	    os << ", ";
-	first = false;
-	os << int(c);
-    }
-    return os << "}";
+    return os << "CharBag{" << cs.size() << ", " << cs.num() << "}";
 }
 
 [[maybe_unused]]
@@ -342,19 +345,30 @@ static pair<CharMap, vector<UChar>> generateCharMap(const UnicodeString &input) 
     CharMap charmap;
     vector<UChar> reverse_charmap;
 
-    int i = 0;
-    forAllAlpha(input, [&charmap, &reverse_charmap, &i](UChar c) {
-	    if (charmap.find(c) == charmap.end()) {
-		if (i == MAX_CHARIDX) {
-		    cerr << "Error: More than " << MAX_CHARIDX+1
-			 << " different characters in input." << endl;
-		    exit(1);
-		}
-		charmap[c] = i++;
-		reverse_charmap.emplace_back(c);
-	    }
+    unordered_map<UChar, int> char_counts;
+
+    forAllAlpha(input, [&char_counts](UChar c) {
+	    ++char_counts[c];
 	    return true;
 	});
+
+    if (char_counts.size() > MAX_LETTERS) {
+	cerr << "Error: More than " << MAX_CHARIDX+1
+	     << " different characters in input." << endl;
+	exit(1);
+    }
+
+    vector<pair<int, UChar>> charmap_with_counts;
+    for (const auto &it : char_counts)
+	charmap_with_counts.emplace_back(-it.second, it.first);
+
+    std::sort(charmap_with_counts.begin(), charmap_with_counts.end());
+
+    int i = 0;
+    for (const auto &p : charmap_with_counts) {
+	charmap[p.second] = i++;
+	reverse_charmap.emplace_back(p.second);
+    }
 
     return make_pair(charmap, reverse_charmap);
 }
