@@ -8,6 +8,7 @@
 #include <iostream>
 #include <limits>
 #include <locale>
+#include <numeric>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -86,6 +87,12 @@ bool forAllAlpha(const UnicodeString &s, Fn &&f) {
 // that must fit in CharIdx).
 typedef unordered_map<UChar, int> CharMap;
 
+static size_t hash_mpz_class(const mpz_class &m) {
+    // Let's decide the lowest bits are good enough, even though it's
+    // guaranteed we have count(most_common_letter) trailing zero bits.
+    return m.get_ui();
+}
+
 // A multiset of characters.
 //
 // The allowable characters are passed in the CharMap, which maps
@@ -113,6 +120,7 @@ public:
     }
     const mpz_class &num() const { return m_num; }
     const int size() const { return m_size; }
+    size_t hash() const { return m_hash; }
 
     bool empty() const { return m_size == 0; }
 
@@ -124,16 +132,18 @@ public:
     optional<CharBag> operator-(const CharBag &rhs) const;
     bool operator==(const CharBag &rhs) const;
 private:
-    CharBag(mpz_class num, int size) : m_num(num), m_size(size) {}
+    CharBag(mpz_class num, int size)
+	: m_num(num), m_size(size), m_hash(hash_mpz_class(num)) {}
 
     mpz_class m_num;
     int m_size;
+    size_t m_hash;
 };
 
 namespace std {
   template <> struct hash<CharBag> {
     size_t operator()(const CharBag &cs) const {
-	return mpz_class(cs.num() % 4294967291ul).get_ui();
+	return cs.hash();
     }
   };
 }
@@ -195,6 +205,29 @@ static ostream &operator<<(ostream &os, const optional<CharBag> &cs) {
     return os;
 }
 
+// from https://stackoverflow.com/questions/17074324/
+template <typename T>
+void apply_permutation_in_place(std::vector<T>& vec,
+				const std::vector<std::size_t>& p) {
+    std::vector<bool> done(vec.size());
+    for (std::size_t i = 0; i < vec.size(); ++i) {
+        if (done[i])
+            continue;
+        done[i] = true;
+        std::size_t prev_j = i;
+        std::size_t j = p[i];
+        while (i != j) {
+            std::swap(vec[prev_j], vec[j]);
+            done[j] = true;
+            prev_j = j;
+            j = p[j];
+        }
+    }
+}
+
+// The dictionary words are sorted by length (number of alphabetic
+// characters). This is important, it's used in
+// forAllAnagrams_iter_last().
 static pair<vector<vector<string>>, vector<CharBag>> loadDictionary(
     const string &fname, const CharBag &cset, const CharMap &cmap) {
     ifstream f(fname);
@@ -221,6 +254,17 @@ static pair<vector<vector<string>>, vector<CharBag>> loadDictionary(
 	}
     }
 
+    // Sort the words by charbag hash.
+
+    vector<size_t> sort_order(charbags.size());
+    std::iota(sort_order.begin(), sort_order.end(), 0);
+
+    std::sort(sort_order.begin(), sort_order.end(),
+	      [&charbags](int a, int b) { return charbags[a].hash() < charbags[b].hash(); });
+
+    apply_permutation_in_place(words, sort_order);
+    apply_permutation_in_place(charbags, sort_order);
+
     //cerr << "Loaded " << count << " dictionary words, " << words.size() << " distinct." << endl;
     return make_pair(words, charbags);
 }
@@ -230,12 +274,37 @@ void forAllAnagrams_iter_last(const vector<CharBag> &dict_charbags,
 			      const vector<int> &possible_charbags,
 			      const CharBag &charbag, Fn &&f,
 			      vector<size_t> &words, size_t start_idx) {
-    for (int i = start_idx, ie = possible_charbags.size(); i<ie; i++) {
-	if (charbag == dict_charbags[possible_charbags[i]]) {
-	    words.emplace_back(possible_charbags[i]);
-	    f(words);
-	    words.pop_back();
-	}
+    size_t required_hash = charbag.hash();
+
+    auto compare_charbags = [&dict_charbags, required_hash](const int a, const int b) {
+	size_t a_hash, b_hash;
+
+	// FIXME how to do this properly? This is really ugly.
+	if (a == -1)
+	    a_hash = required_hash;
+	else
+	    a_hash = dict_charbags[a].hash();
+	if (b == -1)
+	    b_hash = required_hash;
+	else
+	    b_hash = dict_charbags[b].hash();
+
+	return a_hash < b_hash;
+    };
+
+    {
+	auto it = std::lower_bound(possible_charbags.begin() + start_idx,
+				   possible_charbags.end(), -1, compare_charbags);
+
+	for (auto ie = possible_charbags.end();
+	     it != ie && dict_charbags[*it].hash() == required_hash; ++it)
+	    if (charbag == dict_charbags[*it]) {
+		words.emplace_back(*it);
+		f(words);
+		words.pop_back();
+		// There's at most one hit, and we found one.
+		return;
+	    }
     }
 }
 
@@ -250,10 +319,9 @@ void forAllAnagrams_iter(const vector<CharBag> &dict_charbags,
 	return;
     }
     vector<int> possible_charbags;
-    for (int i = start_idx, ie = old_possible_charbags.size(); i<ie; i++) {
+    for (int i = start_idx, ie = old_possible_charbags.size(); i<ie; i++)
 	if (dict_charbags[old_possible_charbags[i]].isSubsetOf(charbag))
 	    possible_charbags.emplace_back(i);
-    }
 
     for (int i = 0, ie = possible_charbags.size(); i<ie; i++) {
 	auto cs = (charbag - dict_charbags[possible_charbags[i]]).value();
