@@ -341,9 +341,8 @@ static po::variables_map parse_args(int argc, char * const *argv) {
     return vm;
 }
 
-static pair<CharMap, vector<UChar>> generateCharMap(const UnicodeString &input) {
+CharMap generateCharMap(const UnicodeString &input) {
     CharMap charmap;
-    vector<UChar> reverse_charmap;
 
     unordered_map<UChar, int> char_counts;
 
@@ -365,12 +364,10 @@ static pair<CharMap, vector<UChar>> generateCharMap(const UnicodeString &input) 
     std::sort(charmap_with_counts.begin(), charmap_with_counts.end());
 
     int i = 0;
-    for (const auto &p : charmap_with_counts) {
+    for (const auto &p : charmap_with_counts)
 	charmap[p.second] = i++;
-	reverse_charmap.emplace_back(p.second);
-    }
 
-    return make_pair(charmap, reverse_charmap);
+    return charmap;
 }
 
 int main(int argc, char **argv) {
@@ -383,7 +380,7 @@ int main(int argc, char **argv) {
     CharMap charmap;
     vector<UChar> reverse_charmap;
 
-    tie(charmap, reverse_charmap) = generateCharMap(input);
+    charmap = generateCharMap(input);
 
     auto input_charbag = CharBag::fromUString(input, charmap).value();
 
