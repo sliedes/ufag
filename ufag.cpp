@@ -149,11 +149,11 @@ namespace std {
 }
 
 bool CharBag::operator==(const CharBag &rhs) const {
-    return m_size == rhs.m_size && m_num == rhs.m_num;
+    return m_hash == rhs.m_hash && m_num == rhs.m_num;
 }
 
 optional<CharBag> CharBag::operator-(const CharBag &rhs) const {
-    if (rhs.m_size > m_size || rhs.m_num > m_num)
+    if (rhs.m_size > m_size)
 	return nullopt;
 
     if (m_size == rhs.m_size && m_num == rhs.m_num)
