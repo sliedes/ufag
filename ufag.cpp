@@ -363,7 +363,7 @@ void forAllAnagrams_iter(const vector<CharBag> &dict_charbags,
     vector<int> possible_charbags;
     for (int i = start_idx, ie = old_possible_charbags.size(); i<ie; i++)
 	if (dict_charbags[old_possible_charbags[i]].isSubsetOf(charbag))
-	    possible_charbags.emplace_back(i);
+	    possible_charbags.emplace_back(old_possible_charbags[i]);
 
     for (int i = 0, ie = possible_charbags.size(); i<ie; i++) {
 	auto cs = (charbag - dict_charbags[possible_charbags[i]]).value();
