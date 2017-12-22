@@ -91,8 +91,10 @@ typedef unordered_map<UChar, int> CharMap;
 
 static size_t hash_mpz_class(const mpz_class &m) {
     // Let's decide the lowest bits are good enough, even though it's
-    // guaranteed we have count(most_common_letter) trailing zero bits.
-    return m.get_ui();
+    // guaranteed we have count(most_common_letter) trailing zero
+    // bits. Also negate it, since we go through the words in hash
+    // order and small words, and short words map to small numbers.
+    return m.get_ui() ^ std::numeric_limits<size_t>::max();
 }
 
 // A multiset of characters.
