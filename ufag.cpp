@@ -5,6 +5,7 @@
 #include <cassert>
 #include <codecvt>
 #include <fstream>
+#include <ios>
 #include <iostream>
 #include <limits>
 #include <locale>
@@ -34,6 +35,7 @@ using std::cout;
 using std::endl;
 using std::forward;
 using std::ifstream;
+using std::ios;
 using std::make_pair;
 using std::nullopt;
 using std::optional;
@@ -115,6 +117,7 @@ static size_t hash_mpz_class(const mpz_class &m) {
 class CharBag {
 public:
     static optional<CharBag> fromUString(const UnicodeString &str, const CharMap &charmap);
+    static optional<CharBag> fromLowerUString(const UnicodeString &str, const CharMap &charmap);
     static optional<CharBag> fromNativeString(const string &str, const CharMap &charmap) {
 	return fromUString(UnicodeString(str.c_str()), charmap);
     }
@@ -167,10 +170,7 @@ optional<CharBag> CharBag::operator-(const CharBag &rhs) const {
     return CharBag{q, m_size-rhs.m_size};
 }
 
-optional<CharBag> CharBag::fromUString(const UnicodeString &str_, const CharMap &charmap) {
-    UnicodeString str(str_);
-    str.toLower();
-
+optional<CharBag> CharBag::fromLowerUString(const UnicodeString &str, const CharMap &charmap) {
     mpz_class n(1);
     int size = 0;
 
@@ -189,6 +189,12 @@ optional<CharBag> CharBag::fromUString(const UnicodeString &str_, const CharMap 
 	return CharBag(n, size);
     } else
 	return nullopt;
+}
+
+optional<CharBag> CharBag::fromUString(const UnicodeString &str_, const CharMap &charmap) {
+    UnicodeString str(str_);
+    str.toLower();
+    return fromLowerUString(str, charmap);
 }
 
 [[maybe_unused]]
@@ -225,33 +231,69 @@ void apply_permutation_in_place(std::vector<T>& vec,
     }
 }
 
+static vector<char> slurp(const string &fileName) {
+    ifstream ifs(fileName.c_str(), ios::binary | ios::ate);
+
+    ifstream::pos_type size = ifs.tellg();
+    ifs.seekg(0, ios::beg);
+
+    vector<char> bytes(size);
+    ifs.read(bytes.data(), size);
+
+    return bytes;
+}
+
 // The dictionary words are sorted by length (number of alphabetic
 // characters). This is important, it's used in
 // forAllAnagrams_iter_last().
 static pair<vector<vector<string>>, vector<CharBag>> loadDictionary(
     const string &fname, const CharBag &cset, const CharMap &cmap) {
-    ifstream f(fname);
+    const auto raw_contents = slurp(fname);
+    UnicodeString contents = UnicodeString(raw_contents.data(), raw_contents.size());
+    contents.toLower();
+    size_t contents_len = contents.length();
 
     vector<vector<string>> words;
     vector<CharBag> charbags;
     unordered_map<CharBag, size_t> charbag_map;
+
     size_t count = 0;
-    for (string line; std::getline(f, line);) {
-	if (line.length() == 0)
-	    continue;
-	optional<CharBag> cs = CharBag::fromNativeString(line, cmap);
-	if (cs && cset - *cs) {
-	    if (cs->empty())
-		continue;
-	    ++count;
-	    auto it = charbag_map.find(*cs);
-	    if (it == charbag_map.end()) {
-		words.emplace_back(vector<string>{{line}});
-		charbags.emplace_back(*cs);
-		charbag_map[*cs] = words.size()-1;
-	    } else
-		words[it->second].emplace_back(line);
+
+    size_t line_start = 0;
+    while (true) {
+	auto newline = contents.indexOf(UChar('\n'), line_start);
+
+	size_t endpos;
+	if (newline == -1)
+	    endpos = contents_len;
+	else
+	    endpos = newline;
+
+	auto str_len = endpos - line_start;
+	auto line = contents.tempSubString(line_start, str_len);
+	if (str_len > 0) {
+	    optional<CharBag> cs = CharBag::fromLowerUString(line, cmap);
+	    if (cs && cset - *cs) {
+		if (cs->empty())
+		    continue;
+		++count;
+
+		ostringstream line_sstream;
+		line_sstream << line;
+
+		auto it = charbag_map.find(*cs);
+		if (it == charbag_map.end()) {
+		    words.emplace_back(vector<string>{{line_sstream.str()}});
+		    charbags.emplace_back(*cs);
+		    charbag_map[*cs] = words.size()-1;
+		} else
+		    words[it->second].emplace_back(line_sstream.str());
+	    }
 	}
+	if (newline == -1)
+	    break;
+	else
+	    line_start = newline+1;
     }
 
     // Sort the words by charbag hash.
