@@ -36,7 +36,6 @@ using std::endl;
 using std::forward;
 using std::ifstream;
 using std::ios;
-using std::make_pair;
 using std::nullopt;
 using std::optional;
 using std::ostream;
@@ -92,9 +91,8 @@ typedef unordered_map<UChar, int> CharMap;
 static size_t hash_mpz_class(const mpz_class &m) {
     // Let's decide the lowest bits are good enough, even though it's
     // guaranteed we have count(most_common_letter) trailing zero
-    // bits. Also negate it, since we go through the words in hash
-    // order and small words, and short words map to small numbers.
-    return m.get_ui() ^ std::numeric_limits<size_t>::max();
+    // bits.
+    return m.get_ui();
 }
 
 // A multiset of characters.
@@ -137,8 +135,18 @@ public:
     optional<CharBag> operator-(const CharBag &rhs) const;
     bool operator==(const CharBag &rhs) const;
 private:
-    CharBag(mpz_class num, int size)
-	: m_num(num), m_size(size), m_hash(hash_mpz_class(num)) {}
+    CharBag(mpz_class num, int size) :
+	m_num(num), m_size(size), m_hash(compute_hash(m_size, m_num)) {}
+
+    static size_t compute_hash(const int &size, const mpz_class &num) {
+	// As a hack to find words faster, we want longer words to map
+	// to smaller hashes. Do this by mapping negated size to the
+	// high bits of the hash.
+	constexpr int bits = std::numeric_limits<size_t>::digits;
+	size_t hi = (~static_cast<size_t>(size)) << (bits-7);
+	size_t lo = hash_mpz_class(num) & ((size_t(1) << (bits-7)) - 1);
+	return hi | lo;
+    }
 
     mpz_class m_num;
     int m_size;
@@ -300,17 +308,17 @@ static pair<vector<vector<string>>, vector<CharBag>> loadDictionary(
 
     // Sort the words by charbag hash.
 
-    vector<size_t> sort_order(charbags.size());
-    std::iota(sort_order.begin(), sort_order.end(), 0);
+    vector<size_t> hash_sort_order(charbags.size());
+    std::iota(hash_sort_order.begin(), hash_sort_order.end(), 0);
 
-    std::sort(sort_order.begin(), sort_order.end(),
+    std::sort(hash_sort_order.begin(), hash_sort_order.end(),
 	      [&charbags](int a, int b) { return charbags[a].hash() < charbags[b].hash(); });
 
-    apply_permutation_in_place(words, sort_order);
-    apply_permutation_in_place(charbags, sort_order);
+    apply_permutation_in_place(words, hash_sort_order);
+    apply_permutation_in_place(charbags, hash_sort_order);
 
     //cerr << "Loaded " << count << " dictionary words, " << words.size() << " distinct." << endl;
-    return make_pair(words, charbags);
+    return {words, charbags};
 }
 
 template <typename Fn>
@@ -384,8 +392,7 @@ void forAllAnagrams(const vector<CharBag> &dict_charbags, const CharBag &charbag
 		    int max_len, Fn &&f) {
     vector<size_t> words;
     vector<int> possible_charbags(dict_charbags.size());
-    for (int i = 0, ie = dict_charbags.size(); i<ie; i++)
-	possible_charbags[i] = i;
+    std::iota(possible_charbags.begin(), possible_charbags.end(), 0);
     forAllAnagrams_iter(dict_charbags, possible_charbags,
 			charbag, forward<Fn>(f), words, 0, 0, max_len);
 }
@@ -498,7 +505,8 @@ int main(int argc, char **argv) {
 
     vector<vector<string>> dict_words;
     vector<CharBag> dict_charbags;
-    tie(dict_words, dict_charbags) = loadDictionary(vm["dict"].as<string>(), input_charbag, charmap);
+    tie(dict_words, dict_charbags) = loadDictionary(
+	vm["dict"].as<string>(), input_charbag, charmap);
 
     forAllAnagrams(dict_charbags, input_charbag, vm["len"].as<int>(),
 		   [&dict_words](const vector<size_t> &word_idxs) {
