@@ -400,7 +400,7 @@ void forAllAnagrams(const vector<CharBag> &dict_charbags, const CharBag &charbag
 // The words vector contains vectors of anagram-equivalent words.
 // Output all possible combinations of them.
 static void outputWords(ostream &stream, const vector<size_t> &word_idxs,
-			const vector<vector<string>> words) {
+			const vector<vector<string>> &words) {
     int size = word_idxs.size();
     vector<size_t> idxs(size);
 
