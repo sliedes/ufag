@@ -1,5 +1,5 @@
 CXXFLAGS=-g -O3 -Wall -std=c++17
-LDFLAGS=`icu-config --ldflags` -licuio -lboost_program_options -lgmp -lgmpxx
+LDFLAGS=`icu-config --ldflags` -licuio -lboost_program_options
 #CXX=clang++
 
 ufag: ufag.cpp

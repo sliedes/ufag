@@ -48,6 +48,8 @@ using std::vector;
 
 using boost::hash_range;
 
+typedef unsigned __int128 bigint;
+
 namespace po = boost::program_options;
 
 // total maximum of letters in input
@@ -88,11 +90,11 @@ bool forAllAlpha(const UnicodeString &s, Fn &&f) {
 // that must fit in CharIdx).
 typedef unordered_map<UChar, int> CharMap;
 
-static size_t hash_mpz_class(const mpz_class &m) {
+static size_t hash_bigint(const bigint &m) {
     // Let's decide the lowest bits are good enough, even though it's
     // guaranteed we have count(most_common_letter) trailing zero
     // bits.
-    return m.get_ui();
+    return static_cast<size_t>(m);
 }
 
 // A multiset of characters.
@@ -121,7 +123,7 @@ public:
     static optional<CharBag> fromNativeString(const string &str, const CharMap &charmap) {
 	return fromUString(UnicodeString(str.c_str()), charmap);
     }
-    const mpz_class &num() const { return m_num; }
+    const bigint &num() const { return m_num; }
     const int size() const { return m_size; }
     size_t hash() const { return m_hash; }
 
@@ -135,20 +137,20 @@ public:
     optional<CharBag> operator-(const CharBag &rhs) const;
     bool operator==(const CharBag &rhs) const;
 private:
-    CharBag(mpz_class num, int size) :
+    CharBag(bigint num, int size) :
 	m_num(num), m_size(size), m_hash(compute_hash(m_size, m_num)) {}
 
-    static size_t compute_hash(const int &size, const mpz_class &num) {
+    static size_t compute_hash(const int &size, const bigint &num) {
 	// As a hack to find words faster, we want longer words to map
 	// to smaller hashes. Do this by mapping negated size to the
 	// high bits of the hash.
 	constexpr int bits = std::numeric_limits<size_t>::digits;
 	size_t hi = (~static_cast<size_t>(size)) << (bits-7);
-	size_t lo = hash_mpz_class(num) & ((size_t(1) << (bits-7)) - 1);
+	size_t lo = hash_bigint(num) & ((size_t(1) << (bits-7)) - 1);
 	return hi | lo;
     }
 
-    mpz_class m_num;
+    bigint m_num;
     int m_size;
     size_t m_hash;
 };
@@ -170,18 +172,18 @@ optional<CharBag> CharBag::operator-(const CharBag &rhs) const {
 	return nullopt;
 
     if (m_size == rhs.m_size && m_num == rhs.m_num)
-	return CharBag{mpz_class(1), 0};
+	return CharBag{bigint(1), 0};
 
-    if (!mpz_divisible_p(m_num.get_mpz_t(), rhs.m_num.get_mpz_t()))
+    // if (!mpz_divisible_p(m_num.get_mpz_t(), rhs.m_num.get_mpz_t()))
+    // 	return nullopt;
+    if (m_num % rhs.m_num != 0)
 	return nullopt;
 
-    mpz_class q;
-    mpz_divexact(q.get_mpz_t(), m_num.get_mpz_t(), rhs.m_num.get_mpz_t());
-    return CharBag{q, m_size-rhs.m_size};
+    return CharBag{m_num/rhs.m_num, m_size-rhs.m_size};
 }
 
 optional<CharBag> CharBag::fromLowerUString(const UnicodeString &str, const CharMap &charmap) {
-    mpz_class n(1);
+    bigint n(1);
     int size = 0;
 
     static_assert(sizeof(PRIMES)/sizeof(PRIMES[0]) >= MAX_LETTERS);
@@ -207,19 +209,19 @@ optional<CharBag> CharBag::fromUString(const UnicodeString &str_, const CharMap 
     return fromLowerUString(str, charmap);
 }
 
-[[maybe_unused]]
-static ostream &operator<<(ostream &os, const CharBag &cs) {
-    return os << "CharBag{" << cs.size() << ", " << cs.num() << "}";
-}
+// [[maybe_unused]]
+// static ostream &operator<<(ostream &os, const CharBag &cs) {
+//     return os << "CharBag{" << cs.size() << ", " << cs.num() << "}";
+// }
 
-[[maybe_unused]]
-static ostream &operator<<(ostream &os, const optional<CharBag> &cs) {
-    if (cs)
-	os << *cs;
-    else
-	os << "nil";
-    return os;
-}
+// [[maybe_unused]]
+// static ostream &operator<<(ostream &os, const optional<CharBag> &cs) {
+//     if (cs)
+// 	os << *cs;
+//     else
+// 	os << "nil";
+//     return os;
+// }
 
 // from https://stackoverflow.com/questions/17074324/
 template <typename T>
