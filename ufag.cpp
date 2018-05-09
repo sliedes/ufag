@@ -47,6 +47,7 @@ using std::unordered_map;
 using std::vector;
 
 using boost::hash_range;
+using icu::UnicodeString;
 
 typedef unsigned __int128 bigint;
 
@@ -452,7 +453,7 @@ static po::variables_map parse_args(int argc, char * const *argv) {
     try {
 	po::store(po::command_line_parser(argc, argv).options(cmdline_opt).positional(p).run(), vm);
 	po::notify(vm);
-    } catch (po::error) {
+    } catch (po::error &) {
 	help = true;
     }
 
