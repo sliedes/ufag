@@ -18,8 +18,6 @@
 #include <utility>
 #include <vector>
 
-#include <gmpxx.h>
-
 #include <boost/functional/hash.hpp>
 #include <boost/program_options.hpp>
 
