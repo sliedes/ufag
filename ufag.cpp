@@ -76,11 +76,11 @@ constexpr int PRIMES[] = {
 template <typename Fn>
 bool forAllAlpha(const UnicodeString &s, Fn &&f) {
     for (int j = 0, je = s.length(); j<je; j++) {
-	UChar c = s[j];
-	if (u_isUAlphabetic(c)) {
-	    if (!f(c))
-		return false;
-	}
+        UChar c = s[j];
+        if (u_isUAlphabetic(c)) {
+            if (!f(c))
+                return false;
+        }
     }
     return true;
 }
@@ -120,7 +120,7 @@ public:
     static optional<CharBag> fromUString(const UnicodeString &str, const CharMap &charmap);
     static optional<CharBag> fromLowerUString(const UnicodeString &str, const CharMap &charmap);
     static optional<CharBag> fromNativeString(const string &str, const CharMap &charmap) {
-	return fromUString(UnicodeString(str.c_str()), charmap);
+        return fromUString(UnicodeString(str.c_str()), charmap);
     }
     const bigint &num() const { return m_num; }
     const int size() const { return m_size; }
@@ -129,24 +129,24 @@ public:
     bool empty() const { return m_size == 0; }
 
     bool isSubsetOf(const CharBag &other) const {
-	auto cs_opt = other-*this;
-	return (bool)cs_opt;
+        auto cs_opt = other-*this;
+        return (bool)cs_opt;
     }
 
     optional<CharBag> operator-(const CharBag &rhs) const;
     bool operator==(const CharBag &rhs) const;
 private:
     CharBag(bigint num, int size) :
-	m_num(num), m_size(size), m_hash(compute_hash(m_size, m_num)) {}
+        m_num(num), m_size(size), m_hash(compute_hash(m_size, m_num)) {}
 
     static size_t compute_hash(const int &size, const bigint &num) {
-	// As a hack to find words faster, we want longer words to map
-	// to smaller hashes. Do this by mapping negated size to the
-	// high bits of the hash.
-	constexpr int bits = std::numeric_limits<size_t>::digits;
-	size_t hi = (~static_cast<size_t>(size)) << (bits-7);
-	size_t lo = hash_bigint(num) & ((size_t(1) << (bits-7)) - 1);
-	return hi | lo;
+        // As a hack to find words faster, we want longer words to map
+        // to smaller hashes. Do this by mapping negated size to the
+        // high bits of the hash.
+        constexpr int bits = std::numeric_limits<size_t>::digits;
+        size_t hi = (~static_cast<size_t>(size)) << (bits-7);
+        size_t lo = hash_bigint(num) & ((size_t(1) << (bits-7)) - 1);
+        return hi | lo;
     }
 
     bigint m_num;
@@ -157,7 +157,7 @@ private:
 namespace std {
   template <> struct hash<CharBag> {
     size_t operator()(const CharBag &cs) const {
-	return cs.hash();
+        return cs.hash();
     }
   };
 }
@@ -168,15 +168,15 @@ bool CharBag::operator==(const CharBag &rhs) const {
 
 optional<CharBag> CharBag::operator-(const CharBag &rhs) const {
     if (rhs.m_size > m_size)
-	return nullopt;
+        return nullopt;
 
     if (m_size == rhs.m_size && m_num == rhs.m_num)
-	return CharBag{bigint(1), 0};
+        return CharBag{bigint(1), 0};
 
     // if (!mpz_divisible_p(m_num.get_mpz_t(), rhs.m_num.get_mpz_t()))
-    // 	return nullopt;
+    //  return nullopt;
     if (m_num % rhs.m_num != 0)
-	return nullopt;
+        return nullopt;
 
     return CharBag{m_num/rhs.m_num, m_size-rhs.m_size};
 }
@@ -188,18 +188,18 @@ optional<CharBag> CharBag::fromLowerUString(const UnicodeString &str, const Char
     static_assert(sizeof(PRIMES)/sizeof(PRIMES[0]) >= MAX_LETTERS);
 
     if (forAllAlpha(str, [&n, &size, &charmap](UChar c) {
-	    auto it = charmap.find(c);
-	    if (it == charmap.end())
-		return false;
-	    int idx = it->second;
-	    assert(idx < MAX_LETTERS);
-	    n *= PRIMES[idx];
-	    ++size;
-	    return true;
-	    })) {
-	return CharBag(n, size);
+            auto it = charmap.find(c);
+            if (it == charmap.end())
+                return false;
+            int idx = it->second;
+            assert(idx < MAX_LETTERS);
+            n *= PRIMES[idx];
+            ++size;
+            return true;
+            })) {
+        return CharBag(n, size);
     } else
-	return nullopt;
+        return nullopt;
 }
 
 optional<CharBag> CharBag::fromUString(const UnicodeString &str_, const CharMap &charmap) {
@@ -216,16 +216,16 @@ optional<CharBag> CharBag::fromUString(const UnicodeString &str_, const CharMap 
 // [[maybe_unused]]
 // static ostream &operator<<(ostream &os, const optional<CharBag> &cs) {
 //     if (cs)
-// 	os << *cs;
+//      os << *cs;
 //     else
-// 	os << "nil";
+//      os << "nil";
 //     return os;
 // }
 
 // from https://stackoverflow.com/questions/17074324/
 template <typename T>
 void apply_permutation_in_place(std::vector<T>& vec,
-				const std::vector<std::size_t>& p) {
+                                const std::vector<std::size_t>& p) {
     std::vector<bool> done(vec.size());
     for (std::size_t i = 0; i < vec.size(); ++i) {
         if (done[i])
@@ -272,39 +272,39 @@ static pair<vector<vector<string>>, vector<CharBag>> loadDictionary(
 
     size_t line_start = 0;
     while (true) {
-	auto newline = contents.indexOf(UChar('\n'), line_start);
+        auto newline = contents.indexOf(UChar('\n'), line_start);
 
-	size_t endpos;
-	if (newline == -1)
-	    endpos = contents_len;
-	else
-	    endpos = newline;
+        size_t endpos;
+        if (newline == -1)
+            endpos = contents_len;
+        else
+            endpos = newline;
 
-	auto str_len = endpos - line_start;
-	auto line = contents.tempSubString(line_start, str_len);
-	if (str_len > 0) {
-	    optional<CharBag> cs = CharBag::fromLowerUString(line, cmap);
-	    if (cs && cset - *cs) {
-		if (cs->empty())
-		    continue;
-		++count;
+        auto str_len = endpos - line_start;
+        auto line = contents.tempSubString(line_start, str_len);
+        if (str_len > 0) {
+            optional<CharBag> cs = CharBag::fromLowerUString(line, cmap);
+            if (cs && cset - *cs) {
+                if (cs->empty())
+                    continue;
+                ++count;
 
-		ostringstream line_sstream;
-		line_sstream << line;
+                ostringstream line_sstream;
+                line_sstream << line;
 
-		auto it = charbag_map.find(*cs);
-		if (it == charbag_map.end()) {
-		    words.emplace_back(vector<string>{{line_sstream.str()}});
-		    charbags.emplace_back(*cs);
-		    charbag_map[*cs] = words.size()-1;
-		} else
-		    words[it->second].emplace_back(line_sstream.str());
-	    }
-	}
-	if (newline == -1)
-	    break;
-	else
-	    line_start = newline+1;
+                auto it = charbag_map.find(*cs);
+                if (it == charbag_map.end()) {
+                    words.emplace_back(vector<string>{{line_sstream.str()}});
+                    charbags.emplace_back(*cs);
+                    charbag_map[*cs] = words.size()-1;
+                } else
+                    words[it->second].emplace_back(line_sstream.str());
+            }
+        }
+        if (newline == -1)
+            break;
+        else
+            line_start = newline+1;
     }
 
     // Sort the words by charbag hash.
@@ -313,7 +313,7 @@ static pair<vector<vector<string>>, vector<CharBag>> loadDictionary(
     std::iota(hash_sort_order.begin(), hash_sort_order.end(), 0);
 
     std::sort(hash_sort_order.begin(), hash_sort_order.end(),
-	      [&charbags](int a, int b) { return charbags[a].hash() < charbags[b].hash(); });
+              [&charbags](int a, int b) { return charbags[a].hash() < charbags[b].hash(); });
 
     apply_permutation_in_place(words, hash_sort_order);
     apply_permutation_in_place(charbags, hash_sort_order);
@@ -324,101 +324,101 @@ static pair<vector<vector<string>>, vector<CharBag>> loadDictionary(
 
 template <typename Fn>
 void forAllAnagrams_iter_last(const vector<CharBag> &dict_charbags,
-			      const vector<int> &possible_charbags,
-			      const CharBag &charbag, Fn &&f,
-			      vector<size_t> &words, size_t start_idx) {
+                              const vector<int> &possible_charbags,
+                              const CharBag &charbag, Fn &&f,
+                              vector<size_t> &words, size_t start_idx) {
     size_t required_hash = charbag.hash();
 
     auto compare_charbags = [&dict_charbags, required_hash](const int a, const int b) {
-	size_t a_hash, b_hash;
+        size_t a_hash, b_hash;
 
-	// FIXME how to do this properly? This is really ugly.
-	if (a == -1)
-	    a_hash = required_hash;
-	else
-	    a_hash = dict_charbags[a].hash();
-	if (b == -1)
-	    b_hash = required_hash;
-	else
-	    b_hash = dict_charbags[b].hash();
+        // FIXME how to do this properly? This is really ugly.
+        if (a == -1)
+            a_hash = required_hash;
+        else
+            a_hash = dict_charbags[a].hash();
+        if (b == -1)
+            b_hash = required_hash;
+        else
+            b_hash = dict_charbags[b].hash();
 
-	return a_hash < b_hash;
+        return a_hash < b_hash;
     };
 
     {
-	auto it = std::lower_bound(possible_charbags.begin() + start_idx,
-				   possible_charbags.end(), -1, compare_charbags);
+        auto it = std::lower_bound(possible_charbags.begin() + start_idx,
+                                   possible_charbags.end(), -1, compare_charbags);
 
-	for (auto ie = possible_charbags.end();
-	     it != ie && dict_charbags[*it].hash() == required_hash; ++it)
-	    if (charbag == dict_charbags[*it]) {
-		words.emplace_back(*it);
-		f(words);
-		words.pop_back();
-		// There's at most one hit, and we found one.
-		return;
-	    }
+        for (auto ie = possible_charbags.end();
+             it != ie && dict_charbags[*it].hash() == required_hash; ++it)
+            if (charbag == dict_charbags[*it]) {
+                words.emplace_back(*it);
+                f(words);
+                words.pop_back();
+                // There's at most one hit, and we found one.
+                return;
+            }
     }
 }
 
 template <typename Fn>
 void forAllAnagrams_iter(const vector<CharBag> &dict_charbags,
-			 const vector<int> &old_possible_charbags,
-			 const CharBag &charbag, Fn &&f,
-			 vector<size_t> &words, size_t start_idx, int curr_len, int max_len) {
+                         const vector<int> &old_possible_charbags,
+                         const CharBag &charbag, Fn &&f,
+                         vector<size_t> &words, size_t start_idx, int curr_len, int max_len) {
     if (curr_len+1 >= max_len) {
-	forAllAnagrams_iter_last(dict_charbags, old_possible_charbags, charbag, f,
-				 words, start_idx);
-	return;
+        forAllAnagrams_iter_last(dict_charbags, old_possible_charbags, charbag, f,
+                                 words, start_idx);
+        return;
     }
     vector<int> possible_charbags;
     for (int i = start_idx, ie = old_possible_charbags.size(); i<ie; i++)
-	if (dict_charbags[old_possible_charbags[i]].isSubsetOf(charbag))
-	    possible_charbags.emplace_back(old_possible_charbags[i]);
+        if (dict_charbags[old_possible_charbags[i]].isSubsetOf(charbag))
+            possible_charbags.emplace_back(old_possible_charbags[i]);
 
     for (int i = 0, ie = possible_charbags.size(); i<ie; i++) {
-	auto cs = (charbag - dict_charbags[possible_charbags[i]]).value();
-	words.emplace_back(possible_charbags[i]);
-	if (cs.empty())
-	    f(words);
-	else
-	    forAllAnagrams_iter(dict_charbags, possible_charbags,
-				cs, forward<Fn>(f), words, i, curr_len+1, max_len);
-	words.pop_back();
+        auto cs = (charbag - dict_charbags[possible_charbags[i]]).value();
+        words.emplace_back(possible_charbags[i]);
+        if (cs.empty())
+            f(words);
+        else
+            forAllAnagrams_iter(dict_charbags, possible_charbags,
+                                cs, forward<Fn>(f), words, i, curr_len+1, max_len);
+        words.pop_back();
     }
 }
 
 template <typename Fn>
 void forAllAnagrams(const vector<CharBag> &dict_charbags, const CharBag &charbag,
-		    int max_len, Fn &&f) {
+                    int max_len, Fn &&f) {
     vector<size_t> words;
     vector<int> possible_charbags(dict_charbags.size());
     std::iota(possible_charbags.begin(), possible_charbags.end(), 0);
     forAllAnagrams_iter(dict_charbags, possible_charbags,
-			charbag, forward<Fn>(f), words, 0, 0, max_len);
+                        charbag, forward<Fn>(f), words, 0, 0, max_len);
 }
 
 // The words vector contains vectors of anagram-equivalent words.
 // Output all possible combinations of them.
 static void outputWords(ostream &stream, const vector<size_t> &word_idxs,
-			const vector<vector<string>> &words) {
+                        const vector<vector<string>> &words) {
     int size = word_idxs.size();
     vector<size_t> idxs(size);
 
     while (true) {
-	stream << words[word_idxs[0]][idxs[0]];
-	for (int i = 1; i<size; i++)
-	    stream << " " << words[word_idxs[i]][idxs[i]];
-	stream << endl;
+        stream << words[word_idxs[0]][idxs[0]];
+        for (int i = 1; i<size; i++)
+            stream << " " << words[word_idxs[i]][idxs[i]];
+        stream << endl;
 
-	// increment
-	int curr = size-1;
-	while (curr >= 0 && ++idxs[curr] == words[word_idxs[curr]].size()) {
-	    idxs[curr] = 0;
-	    curr--;
-	}
-	if (curr < 0)
-	    break;
+        // increment
+        int curr = size-1;
+        while (curr >= 0 && ++idxs[curr] == words[word_idxs[curr]].size()) {
+            idxs[curr] = 0;
+            curr--;
+        }
+        if (curr < 0)
+            break;
     }
 }
 
@@ -433,14 +433,14 @@ static po::variables_map parse_args(int argc, char * const *argv) {
 
     po::options_description visible("Allowed options"), cmdline_opt;
     visible.add_options()
-	("help,h", po::bool_switch(&help)->default_value(false), "show this help")
-	("dict,d", po::value<string>()->default_value("words.txt"),
-	 "dictionary (word list) to use")
-	("len,l", po::value<int>()->default_value(3), "maximum anagram length in words");
+        ("help,h", po::bool_switch(&help)->default_value(false), "show this help")
+        ("dict,d", po::value<string>()->default_value("words.txt"),
+         "dictionary (word list) to use")
+        ("len,l", po::value<int>()->default_value(3), "maximum anagram length in words");
 
     po::options_description hidden;
     hidden.add_options()
-	("sentence", po::value<string>()->required(), "sentence");
+        ("sentence", po::value<string>()->required(), "sentence");
 
     cmdline_opt.add(visible).add(hidden);
 
@@ -449,14 +449,14 @@ static po::variables_map parse_args(int argc, char * const *argv) {
 
     po::variables_map vm;
     try {
-	po::store(po::command_line_parser(argc, argv).options(cmdline_opt).positional(p).run(), vm);
-	po::notify(vm);
+        po::store(po::command_line_parser(argc, argv).options(cmdline_opt).positional(p).run(), vm);
+        po::notify(vm);
     } catch (po::error &) {
-	help = true;
+        help = true;
     }
 
     if (help)
-	usage(argv, visible);
+        usage(argv, visible);
 
     return vm;
 }
@@ -467,25 +467,25 @@ CharMap generateCharMap(const UnicodeString &input) {
     unordered_map<UChar, int> char_counts;
 
     forAllAlpha(input, [&char_counts](UChar c) {
-	    ++char_counts[c];
-	    return true;
-	});
+            ++char_counts[c];
+            return true;
+        });
 
     if (char_counts.size() > MAX_LETTERS) {
-	cerr << "Error: More than " << MAX_CHARIDX+1
-	     << " different characters in input." << endl;
-	exit(1);
+        cerr << "Error: More than " << MAX_CHARIDX+1
+             << " different characters in input." << endl;
+        exit(1);
     }
 
     vector<pair<int, UChar>> charmap_with_counts;
     for (const auto &it : char_counts)
-	charmap_with_counts.emplace_back(-it.second, it.first);
+        charmap_with_counts.emplace_back(-it.second, it.first);
 
     std::sort(charmap_with_counts.begin(), charmap_with_counts.end());
 
     int i = 0;
     for (const auto &p : charmap_with_counts)
-	charmap[p.second] = i++;
+        charmap[p.second] = i++;
 
     return charmap;
 }
@@ -507,11 +507,11 @@ int main(int argc, char **argv) {
     vector<vector<string>> dict_words;
     vector<CharBag> dict_charbags;
     tie(dict_words, dict_charbags) = loadDictionary(
-	vm["dict"].as<string>(), input_charbag, charmap);
+        vm["dict"].as<string>(), input_charbag, charmap);
 
     forAllAnagrams(dict_charbags, input_charbag, vm["len"].as<int>(),
-		   [&dict_words](const vector<size_t> &word_idxs) {
-	    assert(!word_idxs.empty());
-	    outputWords(cout, word_idxs, dict_words);
-	});
+                   [&dict_words](const vector<size_t> &word_idxs) {
+            assert(!word_idxs.empty());
+            outputWords(cout, word_idxs, dict_words);
+        });
 }
