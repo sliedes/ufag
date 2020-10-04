@@ -436,7 +436,9 @@ static po::variables_map parse_args(int argc, char * const *argv) {
         ("help,h", po::bool_switch(&help)->default_value(false), "show this help")
         ("dict,d", po::value<string>()->default_value("words.txt"),
          "dictionary (word list) to use")
-        ("len,l", po::value<int>()->default_value(3), "maximum anagram length in words");
+        ("len,l", po::value<int>()->default_value(3), "maximum anagram length in words")
+        ("remove,r", po::value<string>()->default_value(""),
+         "remove characters from input (find anagrams containing given string)");
 
     po::options_description hidden;
     hidden.add_options()
@@ -496,6 +498,7 @@ int main(int argc, char **argv) {
     auto vm = parse_args(argc, argv);
 
     UnicodeString input = UnicodeString(vm["sentence"].as<string>().c_str()).toLower();
+    UnicodeString remove = UnicodeString(vm["remove"].as<string>().c_str()).toLower();
 
     CharMap charmap;
     vector<UChar> reverse_charmap;
@@ -503,13 +506,23 @@ int main(int argc, char **argv) {
     charmap = generateCharMap(input);
 
     auto input_charbag = CharBag::fromUString(input, charmap).value();
+    auto remove_charbag_opt = CharBag::fromUString(remove, charmap);
+
+    if (remove_charbag_opt == nullopt || !remove_charbag_opt.value().isSubsetOf(input_charbag)) {
+        cerr << "Error: characters for substring \"" << remove
+                << "\" not found in string \"" << input
+                << "\"!" << endl;
+        exit(2);
+    }
+
+    auto stripped_input_charbag = (input_charbag - remove_charbag_opt.value()).value();
 
     vector<vector<string>> dict_words;
     vector<CharBag> dict_charbags;
     tie(dict_words, dict_charbags) = loadDictionary(
-        vm["dict"].as<string>(), input_charbag, charmap);
+        vm["dict"].as<string>(), stripped_input_charbag, charmap);
 
-    forAllAnagrams(dict_charbags, input_charbag, vm["len"].as<int>(),
+    forAllAnagrams(dict_charbags, stripped_input_charbag, vm["len"].as<int>(),
                    [&dict_words](const vector<size_t> &word_idxs) {
             assert(!word_idxs.empty());
             outputWords(cout, word_idxs, dict_words);
